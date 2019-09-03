@@ -12,19 +12,26 @@ async function start() {
   await init()
   //监听事件------------------
   await addListener()
-  //   --------------
+  //初始页面----------
   await page.goto('https://movie.douban.com/')
-  await getData(2)
+  //获取数据，存到redis
+  await getData(2000)
+  //写到文件
   await writeToFile()
-  await page.close()
-  await browser.close()
-  redis.quit()
+  //结束
+  defer()
+ 
 }
 
+function defer(){
+    await page.close()
+    await browser.close()
+    redis.quit()
+}
 async function init() {
   browser = await puppeteer.launch({
     args: ['--no-sandbox', '--disable-dev-shm-usage'],
-    ignoreDefaultArgs: ['--enable-automation']
+    ignoreDefaultArgs: ['--enable-automation'] //设置隐藏navigator.webDriver
     // headless: false
   })
   page = await browser.newPage()
@@ -32,6 +39,7 @@ async function init() {
 
 async function addListener() {
   await page.setRequestInterception(true)
+  //取消下载图片
   page.on('request', interceptedRequest => {
     let url = interceptedRequest.url()
     if (url.indexOf('.png') > -1 || url.indexOf('.jpg') > -1) {
@@ -40,6 +48,7 @@ async function addListener() {
       interceptedRequest.continue()
     }
   })
+  //将所有未操作过的a链接存到redis中
   page.on('domcontentloaded', async () => {
     let urls = await page.$$eval('a', a =>
       a
@@ -53,7 +62,6 @@ async function addListener() {
 }
 
 async function writeToFile() {
-  //   await redis.del('res')
   return new Promise((resolve, reject) => {
     let res = []
     redis
@@ -63,7 +71,6 @@ async function writeToFile() {
         res.push(...data.map(i => JSON.parse(i)))
       })
       .on('end', async () => {
-        log(res)
         fs.writeFileSync('./douban.json', JSON.stringify(res))
         redis.del('res')
         redis.del('doneUrl')
@@ -75,17 +82,10 @@ async function writeToFile() {
 async function getData(count) {
   let n = 0
   while (n < count) {
-    n++
     log('current: ', n)
     try {
       let url = await redis.spop('urls')
       await redis.sadd('doneUrl', url)
-      //   let url
-      //   await redis
-      //     .pipeline()
-      //     .spop('urls', (err, data) => (url = data))
-      //     .sadd('doneUrl', url)
-      //     .exec()
       log('url: ', url)
       if (url) {
         await page.goto(url, { waitUntil: 'domcontentloaded' })
@@ -104,6 +104,7 @@ async function getData(count) {
         })
         if (Object.keys(tmp).length > 0)
           await redis.sadd('res', JSON.stringify(tmp))
+          n++
       }
     } catch (e) {
       console.log(e)
