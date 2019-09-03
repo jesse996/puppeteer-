@@ -99,8 +99,7 @@ async function getData(count) {
         let tmp = {}
         info.forEach(i => {
           let data = i.split(':')
-          let key = data.shift()
-          tmp[key] = data.join('')
+          tmp[data.shift()] = data.join('').trim()
         })
         if (Object.keys(tmp).length > 0)
           await redis.sadd('res', JSON.stringify(tmp))
