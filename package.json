@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "ioredis": "^4.14.0",
+    "puppeteer": "^1.19.0",
+    "redis": "^2.8.0"
+  }
+}
